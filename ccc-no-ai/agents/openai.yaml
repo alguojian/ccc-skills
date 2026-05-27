@@ -1,0 +1,4 @@
+interface:
+  display_name: "CCC No AI"
+  short_description: "Rewrite Chinese articles to sound natural and closer to the user's own voice."
+  default_prompt: "Rewrite this Chinese article to remove AI-sounding phrasing while preserving meaning. If I provide a writing sample, match that voice. Output only the final version unless I ask for notes."
