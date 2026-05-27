@@ -1,0 +1,4 @@
+interface:
+  display_name: "Digital Project Cover"
+  short_description: "把中文文章标题直接生成成数字项目部风格的 3:4 超清封面图。"
+  default_prompt: "使用 $digital-project-cover 根据这个中文文章标题直接生成一张数字项目部风格的 3:4 超清封面图，只替换标题，保留固定品牌元素。"
