@@ -1,67 +1,67 @@
 ---
-title: ccc-write-no-ai design
+title: ccc-write-no-ai 设计文档
 date: 2026-05-27
 status: approved-in-chat
 ---
 
 # ccc-write-no-ai
 
-## Goal
+## 目标
 
-Create a new explicit-use skill that combines the current `ccc-write` and `ccc-no-ai` workflows.
+创建一个新的、明确触发使用的 skill，把当前 `ccc-write` 和 `ccc-no-ai` 的流程串起来。
 
-The new skill should:
+这个新 skill 需要做到：
 
-- act as a clear two-pass entry point for Chinese longform writing tasks
-- first produce the requested draft using the `ccc-write` workflow
-- then run a second pass using the `ccc-no-ai` workflow when the output is article-shaped prose
-- keep the orchestration layer concise instead of duplicating the full rule sets from both existing skills
+- 作为中文长文任务的双阶段入口
+- 第一阶段先按 `ccc-write` 的流程产出用户需要的内容
+- 第二阶段在输出是正文型文本时，再按 `ccc-no-ai` 的流程做一次去 AI 味和自然化处理
+- 自己只承担编排层职责，不复制两边已有的大段规则
 
-The new skill should not replace either existing skill as the default entry point.
+这个新 skill 不应该替代现有两个 skill 的默认入口地位。
 
-## User Intent Boundary
+## 用户意图边界
 
-This skill is for cases where the user clearly wants a combined workflow such as:
+这个 skill 只用于用户明确表达“要把两段流程连起来”的场景，例如：
 
-- write this article and then smooth out the AI flavor
-- continue this draft and then make it sound more natural
-- rewrite this piece and then do one more humanizing pass
+- 先帮我写这篇文章，再顺手去一遍 AI 味
+- 先续写这篇草稿，再改得更自然一点
+- 先改写这篇内容，再做一轮 humanize
 
-This skill should not trigger for generic requests like:
+这个 skill 不应该用于下面这种泛化请求：
 
-- write an article
-- give me an outline
-- help me remove AI flavor from this draft
+- 帮我写篇文章
+- 给我一个提纲
+- 帮我把这段去 AI 味
 
-Those generic cases should continue to route to `ccc-write` or `ccc-no-ai` directly.
+这类普通请求仍然应该分别交给 `ccc-write` 或 `ccc-no-ai`。
 
-## Proposed Skill Name
+## 建议命名
 
-Use `ccc-write-no-ai` as the skill folder name unless implementation uncovers a naming conflict.
+默认使用 `ccc-write-no-ai` 作为 skill 目录名，除非实现时发现命名冲突。
 
-Why this name:
+理由：
 
-- it stays consistent with the existing `ccc-*` naming scheme
-- it is explicit about combining writing and de-AI polishing
-- it is clear enough to support explicit triggering without sounding like a default entry point
+- 和现有 `ccc-*` 命名体系保持一致
+- 能明确表达“写作 + 去 AI 味”是组合能力
+- 名字足够具体，不容易被误解成默认写作入口
 
-## Workflow Shape
+## 工作流形态
 
-The new skill will be a semi-unified orchestrator.
+这个新 skill 采用 `semi-unified` 方案。
 
-It will define:
+它负责定义：
 
-- trigger conditions
-- routing behavior
-- pass-one versus pass-two rules
-- final output behavior
-- the boundary between orchestration rules and delegated rules
+- 触发条件
+- 任务路由方式
+- 第一阶段和第二阶段各自的职责边界
+- 默认输出规则
+- 新 skill 与现有两个 skill 的分工关系
 
-It will not inline the full content of `ccc-write` or `ccc-no-ai`.
+它不负责把 `ccc-write` 和 `ccc-no-ai` 的全部规则重新抄一遍。
 
-## Route Matrix
+## 路由矩阵
 
-Retain the same five task routes already used by `ccc-write`:
+沿用 `ccc-write` 现有的五类任务路由：
 
 - `full_article`
 - `outline`
@@ -69,94 +69,95 @@ Retain the same five task routes already used by `ccc-write`:
 - `continue`
 - `review`
 
-Execution by route:
+每种路由的执行方式如下：
 
-- `full_article`: run `ccc-write` pass, then run `ccc-no-ai` pass on the produced article
-- `rewrite`: run `ccc-write` rewrite pass, then run `ccc-no-ai` pass on the produced article
-- `continue`: run `ccc-write` continuation pass, then run `ccc-no-ai` pass on the produced article
-- `outline`: run only the `ccc-write` outline flow and return directly
-- `review`: run only the `ccc-write` review flow and return directly
+- `full_article`：先走 `ccc-write` 成稿流程，再对成稿结果走一次 `ccc-no-ai`
+- `rewrite`：先走 `ccc-write` 的重写流程，再对重写后的正文走一次 `ccc-no-ai`
+- `continue`：先走 `ccc-write` 的续写流程，再对续写后的正文走一次 `ccc-no-ai`
+- `outline`：只走 `ccc-write` 的提纲流程，直接返回
+- `review`：只走 `ccc-write` 的审稿流程，直接返回
 
-Reasoning:
+这样设计的原因：
 
-- the second pass is only useful when the first pass outputs article prose
-- `outline` and `review` are not final prose deliverables, so forcing a de-AI rewrite would either distort the format or add no value
+- 第二阶段只有在第一阶段产出正文时才真正有价值
+- `outline` 和 `review` 不是最终正文，强行再做一轮去 AI 味要么会破坏格式，要么没有明显收益
 
-## Pass One Rules
+## 第一阶段规则
 
-Pass one should follow the existing `ccc-write` rules for:
+第一阶段直接继承 `ccc-write` 的核心规则，包括但不限于：
 
-- route selection
-- material sufficiency checks
-- downgrade behavior when firsthand material is missing
-- fact-risk control
-- tone control
-- output shape for each route
+- 任务路由判断
+- 素材是否充足的判断
+- 素材不足时的降级策略
+- 事实风险控制
+- 语气强度控制
+- 各类路由对应的输出形态
 
-The new skill should explicitly state that it inherits those rules rather than restating them in full.
+新 skill 里应明确写成“继承这些规则”，而不是把整套细则完整复制进来。
 
-## Pass Two Rules
+## 第二阶段规则
 
-Pass two should follow the existing `ccc-no-ai` rules for:
+第二阶段直接继承 `ccc-no-ai` 的核心规则，包括但不限于：
 
-- article-shape cleanup
-- voice matching when a user sample exists
-- removing templated phrasing, report cadence, and mechanical transitions
-- preserving meaning, stance, and required information
-- avoiding invented facts, scenes, emotions, or examples
+- 正文形态修复
+- 在用户提供样文时优先做笔气贴合
+- 去掉模板腔、报告腔、机械转折和过度平均的节奏
+- 保留原意、立场和必要信息
+- 不补充未经提供的事实、场景、情绪、案例或引用
 
-The new skill should explicitly limit pass two to cleanup and naturalization. It must not:
+新 skill 还需要把第二阶段的边界写死：
 
-- change the thesis
-- add new claims
-- move the piece into a new structure unless needed for readability
-- strip out required footer behavior inherited from `ccc-write`
+- 只能做清理和自然化，不负责改题
+- 不能改变核心论点
+- 不能新增观点和事实
+- 除非可读性需要，否则不要大改文章结构
+- 不能删除或改写从 `ccc-write` 继承来的固定尾注规则
 
-## Footer Behavior
+## 尾注规则
 
-For `full_article`, `rewrite`, and `continue`, keep the current `ccc-write` default footer behavior unchanged.
+对于 `full_article`、`rewrite`、`continue`，保持 `ccc-write` 当前的固定尾注规则不变。
 
-Implementation rule:
+实现约束：
 
-- append the fixed footer during the first pass if the route normally requires it
-- allow the second pass to smooth the body text without deleting or paraphrasing the fixed footer
+- 如果该路由按 `ccc-write` 的规则本来就应追加固定尾注，应在第一阶段完成追加
+- 第二阶段可以顺正文的语气和节奏，但不能删除、替换、改写这段固定尾注
 
-## Output Rules
+## 输出规则
 
-Default output:
+默认输出方式：
 
-- return only the final result
-- do not show the intermediate first-pass draft
-- do not include a process log
-- do not include rewrite notes unless the user explicitly asks for them
+- 只返回最终版本
+- 不默认展示第一阶段初稿
+- 不默认展示处理过程
+- 不默认附带修改说明
 
-If the user asks for comparison or explanation, the skill may provide:
+只有当用户明确要求时，才可以额外提供：
 
-- first-pass versus second-pass comparison
-- a short note on what changed
-- a brief diagnosis of remaining AI-sounding spots
+- 第一阶段和第二阶段的对比
+- 简短修改说明
+- 剩余 AI 味问题的简短诊断
 
-## Reference Strategy
+## references 策略
 
-Keep the new `SKILL.md` lean.
+新的 `SKILL.md` 应尽量保持轻量。
 
-Do not copy large guidance blocks from the existing skills.
+不要复制现有 skill 里的大段说明，而是通过职责引用来复用已有规则。
 
-Instead:
+具体做法：
 
-- point to `ccc-write` for longform writing rules and references
-- point to `ccc-no-ai` for anti-AI rewrite rules and references
-- only add new reference files if orchestration itself needs reusable examples or edge-case guidance
+- 长文写作规则和相关 references 继续交给 `ccc-write`
+- 去 AI 味重写规则和相关 references 继续交给 `ccc-no-ai`
+- 只有当“编排层本身”出现稳定可复用的边界案例时，才考虑新增 reference 文件
 
-Expected initial implementation:
+第一版预期：
 
-- no new `references/` files
-- no new `scripts/` files
-- include `agents/openai.yaml`
+- 不新增 `references/`
+- 不新增 `scripts/`
+- 包含 `agents/openai.yaml`
 
-## File Layout
+## 文件结构
 
-Planned new directory:
+计划新增的目录结构：
 
 ```text
 ccc-write-no-ai/
@@ -165,52 +166,52 @@ ccc-write-no-ai/
     └── openai.yaml
 ```
 
-No extra docs, readmes, or placeholder resource folders should be created unless implementation reveals a concrete need.
+除非实现时出现明确需要，否则不要额外创建 README、说明文档、占位资源目录或其他辅助文件。
 
-## Frontmatter And Triggering
+## Frontmatter 与触发描述
 
-The `SKILL.md` frontmatter description should make these points explicit:
+`SKILL.md` 的 frontmatter description 需要明确表达这些点：
 
-- it combines article writing with a second humanizing pass
-- it is for Chinese longform tasks
-- it is best for users who clearly want both stages in one request
-- it supports `full_article`, `rewrite`, and `continue` as two-pass outputs
-- it supports `outline` and `review` as single-pass outputs
+- 这是一个把“写作”和“第二轮去 AI 味”串起来的 skill
+- 面向中文长文相关任务
+- 只适合用户明确想要两阶段连续处理的情况
+- `full_article`、`rewrite`、`continue` 属于双阶段输出
+- `outline`、`review` 属于单阶段输出
 
-The description should also make clear what the skill is not for:
+description 里还需要明确说明它不是什么：
 
-- not the default generic writing entry point
-- not a standalone de-AI rewrite skill for already-written drafts unless the user also wants the writing-stage workflow
+- 不是通用写作默认入口
+- 不是单独替代 `ccc-no-ai` 的普通去 AI 味入口
 
-## Validation Plan
+## 验证计划
 
-Validation for the initial version should include:
+第一版的验证包括：
 
-1. Run skill-folder validation on the finished skill.
-2. Manually inspect the trigger description for explicitness.
-3. Manually inspect the route matrix to confirm only three routes use the second pass.
-4. Check that the output rules do not expose intermediate drafts by default.
-5. Check that footer preservation is stated clearly.
+1. 对新 skill 跑一次结构校验。
+2. 人工检查触发文案是否足够明确，不会抢默认入口。
+3. 人工检查路由矩阵是否确保只有三类正文会进入第二阶段。
+4. 检查默认输出规则是否不会暴露中间稿。
+5. 检查尾注保留规则是否写清楚。
 
-## Non-Goals
+## 非目标
 
-The first version should not:
+第一版不做这些事：
 
-- merge the two existing skills into one canonical default skill
-- change the behavior of `ccc-write`
-- change the behavior of `ccc-no-ai`
-- add automation, scripts, or external tools
-- create a new house style system
+- 不把两个现有 skill 合并成一个新的默认总入口
+- 不修改 `ccc-write` 的现有行为
+- 不修改 `ccc-no-ai` 的现有行为
+- 不增加自动化、脚本或外部工具依赖
+- 不建立新的 house style 体系
 
-## Open Implementation Notes
+## 实现备注
 
-Implementation should prefer concise imperative instructions in `SKILL.md`.
+实现时，`SKILL.md` 应尽量使用简洁、祈使式的写法。
 
-If wording becomes repetitive, bias toward:
+如果某段话开始显得重复，优先采用下面这种方式：
 
-- one short orchestration rule in the new skill
-- one explicit pointer to the existing source skill
+- 在新 skill 里只写一条简短编排规则
+- 明确指向现有 skill 的对应职责
 
-Instead of:
+而不是：
 
-- restating full downstream guidance
+- 把下游 skill 的整套长规则重新抄一遍
