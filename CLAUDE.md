@@ -8,6 +8,7 @@ This repository contains Claude Code skills for Chinese writing and rewriting.
 
 - `ccc-write` helps with full articles, outlines, rewrites, continuations, and reviews of Chinese longform content, especially公众号、个人博客、观点稿、体验稿、方法论长文.
 - `ccc-no-ai` rewrites existing Chinese text to reduce AI-sounding phrasing, template language, and mechanical rhythm while preserving the original meaning.
+- `ccc-write-no-ai` combines longform writing with a second-pass de-AI rewrite when the user explicitly wants a two-stage workflow.
 
 The repository is content/configuration-oriented rather than an application codebase. There is currently no package manifest, build system, lint configuration, or automated test runner in the tracked files.
 
@@ -30,6 +31,8 @@ No verified build, lint, or test commands exist in this repository at the moment
 - `ccc-no-ai/references/voice_matching.md` documents how to extract a user's writing fingerprint from samples and prioritize that fingerprint during rewrites.
 - `ccc-no-ai/references/house_voice_fingerprint.md` stores the repo owner's default Chinese article voice fingerprint so the skill has a stable fallback voice when no fresh sample is provided in the current conversation.
 - `ccc-no-ai/references/article_quality_rubric.md` defines the internal quality checks for deciding whether a rewritten Chinese article feels like a real article instead of merely a polished answer.
+- `ccc-write-no-ai/SKILL.md` is a lightweight orchestration layer for explicit two-pass requests: first follow `ccc-write`, then run `ccc-no-ai` only when pass one produces article-shaped prose.
+- `ccc-write-no-ai/agents/openai.yaml` stores UI metadata for the `ccc-write-no-ai` skill.
 
 The longform skill intentionally keeps large examples in `references/` rather than `SKILL.md`. Preserve that split when expanding `ccc-write`. `ccc-no-ai` should likewise keep its main workflow in `SKILL.md` and push detailed Chinese-pattern and voice-matching guidance into `references/`.
 
@@ -56,6 +59,15 @@ Key constraints from `ccc-no-ai/SKILL.md` that should remain central when editin
 - Never invent facts, data, examples, experiences, or quotes to make text feel more human.
 - Adapt tone to the source context without turning "human" into slang, affectation, or deliberate mistakes.
 - Run an internal second-pass audit so the output does not merely swap old AI cliches for a newer "smooth rewrite" template.
+
+Key constraints from `ccc-write-no-ai/SKILL.md` that should remain central when editing the skill:
+
+- The skill is an explicit-use entry point, not the repository's default writing skill.
+- Route requests with the same five categories as `ccc-write`, but only send `full_article`, `rewrite`, and `continue` through the second-pass `ccc-no-ai` flow.
+- Let `outline` and `review` return after pass one without forcing de-AI rewriting.
+- Reuse `ccc-write` for material gates, fact safety, tone, and footer behavior instead of duplicating those rules inline.
+- Reuse `ccc-no-ai` only for cleanup and naturalization; never let pass two change the thesis, add claims, invent facts, or remove the fixed footer inherited from `ccc-write`.
+- Default to returning only the final version unless the user explicitly asks for comparisons or notes.
 
 ## Editing guidance
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "CCC Write No AI"
+  short_description: "先写中文长文，再补一轮去 AI 味与自然化定稿处理。"
+  default_prompt: "使用 $ccc-write-no-ai 先完成这篇中文长文的写作、续写或改写，再对最终正文做一轮去 AI 味和自然化处理。"

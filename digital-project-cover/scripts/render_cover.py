@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import math
 import re
 import shutil
 import sys
@@ -9,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
+import numpy as np
 from PIL import Image, ImageChops, ImageColor, ImageDraw, ImageFilter, ImageFont
 
 WIDTH = 2160
@@ -147,6 +147,10 @@ def resize_contain(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     copy = image.copy()
     copy.thumbnail(size, Image.Resampling.LANCZOS)
     return copy
+
+
+def resize_cover_template(image: Image.Image) -> Image.Image:
+    return image.resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
 
 
 def render_gradient_text_mask(
@@ -476,6 +480,66 @@ def create_background() -> Image.Image:
     return canvas
 
 
+def create_title_detection_mask(image: Image.Image) -> Image.Image:
+    rgb = image.convert("RGB")
+    arr = np.array(rgb)
+    h, w = arr.shape[:2]
+    mask = np.zeros((h, w), dtype=np.uint8)
+
+    x0 = int(w * 0.06)
+    x1 = int(w * 0.90)
+    y0 = int(h * 0.19)
+    y1 = int(h * 0.66)
+    roi = arr[y0:y1, x0:x1]
+    lum = roi.mean(axis=2)
+    spread = roi.max(axis=2) - roi.min(axis=2)
+    vivid = (roi.max(axis=2) > 160) & (spread > 36)
+    dark = lum < 132
+    mid_dark = (lum < 188) & (spread > 18)
+    detected = vivid | dark | mid_dark
+    mask[y0:y1, x0:x1] = np.where(detected, 255, 0).astype(np.uint8)
+
+    pil_mask = Image.fromarray(mask, mode="L")
+    pil_mask = pil_mask.filter(ImageFilter.MaxFilter(19))
+    pil_mask = pil_mask.filter(ImageFilter.GaussianBlur(18))
+
+    manual = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(manual)
+    draw.rounded_rectangle((140, 500, 1960, 980), radius=180, fill=210)
+    draw.rounded_rectangle((80, 860, 1880, 1560), radius=210, fill=235)
+    draw.rounded_rectangle((120, 1410, 1880, 1860), radius=160, fill=220)
+    draw.ellipse((1340, 1360, 1980, 1830), fill=170)
+    draw.ellipse((60, 900, 560, 1270), fill=180)
+    manual = manual.filter(ImageFilter.GaussianBlur(55))
+
+    combined = ImageChops.lighter(pil_mask, manual)
+    combined = combined.filter(ImageFilter.GaussianBlur(8))
+    return combined
+
+
+def cleanup_template_title_area(image: Image.Image) -> Image.Image:
+    base = image.convert("RGBA")
+    cleaned = base.copy()
+
+    wash = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    wash_draw = ImageDraw.Draw(wash)
+    wash_draw.rounded_rectangle((220, 530, 1860, 900), radius=170, fill=hex_rgba(WHITE, 255))
+    wash_draw.rounded_rectangle((110, 860, 1910, 1510), radius=210, fill=hex_rgba(WHITE, 255))
+    wash_draw.rounded_rectangle((220, 1450, 1810, 1840), radius=150, fill=hex_rgba(WHITE, 255))
+    wash_draw.ellipse((260, 560, 1820, 1780), fill=hex_rgba(WHITE, 188))
+    wash = wash.filter(ImageFilter.GaussianBlur(44))
+    cleaned.alpha_composite(wash)
+
+    air = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    air_draw = ImageDraw.Draw(air)
+    air_draw.ellipse((520, 620, 1120, 1220), fill=hex_rgba(BLUE, 22))
+    air_draw.ellipse((1180, 1080, 1880, 1620), fill=hex_rgba(PURPLE, 22))
+    air_draw.ellipse((150, 1120, 660, 1480), fill=hex_rgba(TEAL, 18))
+    air = air.filter(ImageFilter.GaussianBlur(86))
+    cleaned.alpha_composite(air)
+    return cleaned
+
+
 def build_brand_header(robot_icon: Image.Image) -> Image.Image:
     header = Image.new("RGBA", (820, 210), (0, 0, 0, 0))
     icon = resize_contain(robot_icon, (138, 138))
@@ -663,22 +727,13 @@ def prepare_assets(template_reference: str | None, robot_reference: str | None) 
 
 
 def render_cover(title: str, output_path: Path) -> Path:
-    if not DEFAULT_ROBOT.exists() or not DEFAULT_BRAND_HEADER.exists():
-        raise FileNotFoundError("Missing brand assets. Run --prepare-assets first.")
+    if not DEFAULT_TEMPLATE_REFERENCE.exists():
+        raise FileNotFoundError("Missing template-reference.png. Run --prepare-assets first.")
 
-    canvas = create_background()
-    draw_platform(canvas)
-
-    brand_header = Image.open(DEFAULT_BRAND_HEADER).convert("RGBA")
-    brand_header = resize_contain(brand_header, (760, 220))
-    canvas.alpha_composite(brand_header, (104, 112))
-
-    draw_pill(canvas, "AI 文章")
+    template = Image.open(DEFAULT_TEMPLATE_REFERENCE).convert("RGBA")
+    canvas = resize_cover_template(template)
+    canvas = cleanup_template_title_area(canvas)
     draw_title_block(canvas, title)
-    draw_brand_area(canvas)
-
-    robot = Image.open(DEFAULT_ROBOT).convert("RGBA")
-    paste_robot(canvas, robot)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     canvas = canvas.convert("RGB")
